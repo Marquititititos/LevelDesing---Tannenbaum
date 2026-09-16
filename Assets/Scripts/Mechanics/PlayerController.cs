@@ -165,6 +165,8 @@ namespace Platformer.Mechanics
                 jumpBufferCounter -= Time.deltaTime;
         }
 
+       
+
         void UpdateJumpState()
         {
             jump = false;

@@ -34,7 +34,10 @@ namespace Platformer.Mechanics
         public bool IsGrounded { get; private set; }
 
         protected Vector2 targetVelocity;
+        protected Vector2 externalMovement;
         protected Vector2 groundNormal;
+        protected CircularMovingPlatform groundPlatform;
+
         protected Rigidbody2D body;
         protected ContactFilter2D contactFilter;
         protected RaycastHit2D[] hitBuffer = new RaycastHit2D[16];
@@ -104,17 +107,42 @@ namespace Platformer.Mechanics
 
         protected virtual void FixedUpdate()
         {
+            // Find moving platform directly below player.
+            DetectMovingPlatform();
+
+            // --------------------------------------------------
+            // MOVE WITH PLATFORM FIRST
+            // --------------------------------------------------
+
+            if (groundPlatform != null)
+            {
+                Vector2 platformMove = groundPlatform.DeltaMovement;
+
+                MoveWithPlatform(platformMove, groundPlatform);
+            }
+
+            // --------------------------------------------------
+            // NORMAL PHYSICS
+            // --------------------------------------------------
+
             if (useGravity)
             {
-                // Original gravity behaviour.
-                if (velocity.y < 0)
-                    velocity += gravityModifier * Physics2D.gravity * Time.deltaTime;
+                if (groundPlatform != null && velocity.y <= 0)
+                {
+                    // While riding a moving platform, don't let gravity
+                    // continuously create a gap between player and platform.
+                    velocity.y = -1f;
+                }
                 else
-                    velocity += Physics2D.gravity * Time.deltaTime;
+                {
+                    if (velocity.y < 0)
+                        velocity += gravityModifier * Physics2D.gravity * Time.deltaTime;
+                    else
+                        velocity += Physics2D.gravity * Time.deltaTime;
+                }
             }
             else
             {
-                // Flying objects directly follow their requested vertical velocity.
                 velocity.y = targetVelocity.y;
             }
 
@@ -124,15 +152,103 @@ namespace Platformer.Mechanics
 
             var deltaPosition = velocity * Time.deltaTime;
 
-            var moveAlongGround = new Vector2(groundNormal.y, -groundNormal.x);
+            var moveAlongGround =
+                new Vector2(groundNormal.y, -groundNormal.x);
 
-            var move = moveAlongGround * deltaPosition.x;
+            var move =
+                moveAlongGround * deltaPosition.x;
 
             PerformMovement(move, false);
 
-            move = Vector2.up * deltaPosition.y;
+            move =
+                Vector2.up * deltaPosition.y;
 
             PerformMovement(move, true);
+        }
+
+        void MoveWithPlatform(Vector2 move, CircularMovingPlatform platform)
+        {
+            if (move.sqrMagnitude <= 0.000001f)
+                return;
+
+            // Move horizontally with platform
+            if (Mathf.Abs(move.x) > 0.0001f)
+            {
+                PerformPlatformMovement(
+                    new Vector2(move.x, 0),
+                    platform
+                );
+            }
+
+            // Move vertically with platform
+            if (Mathf.Abs(move.y) > 0.0001f)
+            {
+                PerformPlatformMovement(
+                    new Vector2(0, move.y),
+                    platform
+                );
+            }
+        }
+
+        void DetectMovingPlatform()
+        {
+            // If we are already riding a platform, keep it unless we've
+            // clearly moved away from its top.
+            if (groundPlatform != null)
+            {
+                Collider2D platformCollider =
+                    groundPlatform.GetComponent<Collider2D>();
+
+                if (platformCollider != null)
+                {
+                    Bounds playerBounds = GetComponent<Collider2D>().bounds;
+                    Bounds platformBounds = platformCollider.bounds;
+
+                    float playerBottom = playerBounds.min.y;
+                    float platformTop = platformBounds.max.y;
+
+                    // Still close enough vertically to be considered riding it.
+                    bool closeVertically =
+                        Mathf.Abs(playerBottom - platformTop) < 0.20f;
+
+                    // Still horizontally above some part of the platform.
+                    bool horizontallyOverlapping =
+                        playerBounds.max.x > platformBounds.min.x &&
+                        playerBounds.min.x < platformBounds.max.x;
+
+                    if (closeVertically && horizontallyOverlapping)
+                    {
+                        return;
+                    }
+                }
+
+                groundPlatform = null;
+            }
+
+            // Otherwise try to find a platform underneath us.
+            RaycastHit2D[] results = new RaycastHit2D[8];
+
+            int count = body.Cast(
+                Vector2.down,
+                contactFilter,
+                results,
+                0.12f
+            );
+
+            for (int i = 0; i < count; i++)
+            {
+                if (results[i].normal.y <= minGroundNormalY)
+                    continue;
+
+                CircularMovingPlatform platform =
+                    results[i].collider.GetComponentInParent<CircularMovingPlatform>();
+
+                if (platform != null)
+                {
+                    groundPlatform = platform;
+                    return;
+                }
+            }
         }
 
         void PerformMovement(Vector2 move, bool yMovement)
@@ -150,7 +266,7 @@ namespace Platformer.Mechanics
                         LayerMask.NameToLayer("OneWayPlatform"))
                     {
                         // Don't collide while moving upward.
-                        if (velocity.y > 0)
+                        if (move.y > 0)
                             continue;
 
                         // Don't collide with the underside or sides.
@@ -164,6 +280,15 @@ namespace Platformer.Mechanics
                     if (currentNormal.y > minGroundNormalY)
                     {
                         IsGrounded = true;
+
+                        // Remember which moving platform we're standing on.
+                        CircularMovingPlatform platform =
+                            hitBuffer[i].collider.GetComponentInParent<CircularMovingPlatform>();
+
+                        if (platform != null)
+                        {
+                            groundPlatform = platform;
+                        }
 
                         if (yMovement)
                         {
@@ -201,6 +326,81 @@ namespace Platformer.Mechanics
                 }
             }
             body.position = body.position + move.normalized * distance;
+        }
+
+        void PerformPlatformMovement(
+    Vector2 move,
+    CircularMovingPlatform platform)
+        {
+            float distance = move.magnitude;
+
+            if (distance <= minMoveDistance)
+                return;
+
+            int count = body.Cast(
+                move,
+                contactFilter,
+                hitBuffer,
+                distance + shellRadius
+            );
+
+            for (int i = 0; i < count; i++)
+            {
+                Collider2D hitCollider = hitBuffer[i].collider;
+
+                // -------------------------------------------------
+                // IMPORTANT:
+                // Ignore the platform currently carrying the player.
+                // -------------------------------------------------
+
+                CircularMovingPlatform hitPlatform =
+                    hitCollider.GetComponentInParent<CircularMovingPlatform>();
+
+                if (hitPlatform == platform)
+                {
+                    continue;
+                }
+
+                // -------------------------------------------------
+                // Still respect every OTHER collision.
+                // -------------------------------------------------
+
+                // Other one-way platforms
+                if (hitCollider.gameObject.layer ==
+                    LayerMask.NameToLayer("OneWayPlatform"))
+                {
+                    // Ignore them while moving upward
+                    if (move.y > 0)
+                        continue;
+
+                    // Ignore underside / sides
+                    if (hitBuffer[i].normal.y < 0.5f)
+                        continue;
+                }
+
+                float modifiedDistance =
+                    hitBuffer[i].distance - shellRadius;
+
+                if (modifiedDistance < distance)
+                {
+                    distance = Mathf.Max(modifiedDistance, 0);
+                }
+            }
+
+            if (distance > 0)
+            {
+                body.position += move.normalized * distance;
+            }
+        }
+
+        protected void LeaveMovingPlatform()
+        {
+            groundPlatform = null;
+        }
+
+        public void AddExternalMovement(Vector2 movement)
+        {
+            externalMovement += movement;
         }
 
     }

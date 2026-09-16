@@ -109,6 +109,8 @@ namespace Platformer.Mechanics
 
             if (jump && IsGrounded)
             {
+                LeaveMovingPlatform();
+
                 velocity.y = jumpTakeOffSpeed * model.jumpModifier;
                 jump = false;
             }
