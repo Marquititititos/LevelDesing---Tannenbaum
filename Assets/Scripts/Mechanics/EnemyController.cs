@@ -135,9 +135,15 @@ namespace Platformer.Mechanics
                 control.move.y = Mathf.Clamp(direction.y, -1f, 1f);
             }
 
-            if (flipSpriteWithDirection && spriteRenderer != null && Mathf.Abs(control.move.x) > 0.01f)
+            if (spriteRenderer != null && Mathf.Abs(control.move.x) > 0.01f)
             {
-                spriteRenderer.flipX = control.move.x < 0f;
+                // Moving left = use original sprite
+                if (control.move.x < 0f)
+                    spriteRenderer.flipX = false;
+
+                // Moving right = flip the original sprite
+                else if (control.move.x > 0f)
+                    spriteRenderer.flipX = true;
             }
         }
 

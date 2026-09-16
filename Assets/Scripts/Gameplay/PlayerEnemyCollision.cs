@@ -20,7 +20,18 @@ namespace Platformer.Gameplay
 
         public override void Execute()
         {
-            var willHurtEnemy = player.Bounds.center.y >= enemy.Bounds.max.y;
+            float playerBottom = player.Bounds.min.y;
+            float enemyTop = enemy.Bounds.max.y;
+
+            bool playerIsFalling = player.velocity.y <= 0f;
+
+            // Allows the player's feet to be slightly below the exact top
+            // of the enemy and still count as a stomp.
+            float stompTolerance = 0.25f;
+
+            var willHurtEnemy =
+                playerIsFalling &&
+                playerBottom >= enemyTop - stompTolerance;
 
             if (willHurtEnemy)
             {
