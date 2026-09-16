@@ -17,8 +17,6 @@ namespace Platformer
                 var ep = path.transform.InverseTransformPoint(Handles.PositionHandle(path.transform.TransformPoint(path.endPosition), path.transform.rotation));
                 if (cc.changed)
                 {
-                    sp.y = 0;
-                    ep.y = 0;
                     path.startPosition = sp;
                     path.endPosition = ep;
                 }

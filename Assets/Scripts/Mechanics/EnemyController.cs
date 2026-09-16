@@ -113,6 +113,7 @@ namespace Platformer.Mechanics
 
         void Update()
         {
+            control.move = Vector2.zero;
             bool movementHandledByChase = false;
 
             if (enableChasePlayer)
@@ -128,7 +129,10 @@ namespace Platformer.Mechanics
                     mover = path.CreateMover(patrolSpeed);
                 }
 
-                control.move.x = Mathf.Clamp(mover.Position.x - transform.position.x, -1, 1);
+                Vector2 direction = mover.Position - (Vector2)transform.position;
+
+                control.move.x = Mathf.Clamp(direction.x, -1f, 1f);
+                control.move.y = Mathf.Clamp(direction.y, -1f, 1f);
             }
 
             if (flipSpriteWithDirection && spriteRenderer != null && Mathf.Abs(control.move.x) > 0.01f)

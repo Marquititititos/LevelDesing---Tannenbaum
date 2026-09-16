@@ -19,6 +19,9 @@ namespace Platformer.Mechanics
         /// </summary>
         public float gravityModifier = 1f;
 
+        [Tooltip("If disabled, gravity is not applied and targetVelocity.y controls vertical movement. Useful for flying enemies.")]
+        public bool useGravity = true;
+
         /// <summary>
         /// The current velocity of the entity.
         /// </summary>
@@ -101,11 +104,19 @@ namespace Platformer.Mechanics
 
         protected virtual void FixedUpdate()
         {
-            //if already falling, fall faster than the jump speed, otherwise use normal gravity.
-            if (velocity.y < 0)
-                velocity += gravityModifier * Physics2D.gravity * Time.deltaTime;
+            if (useGravity)
+            {
+                // Original gravity behaviour.
+                if (velocity.y < 0)
+                    velocity += gravityModifier * Physics2D.gravity * Time.deltaTime;
+                else
+                    velocity += Physics2D.gravity * Time.deltaTime;
+            }
             else
-                velocity += Physics2D.gravity * Time.deltaTime;
+            {
+                // Flying objects directly follow their requested vertical velocity.
+                velocity.y = targetVelocity.y;
+            }
 
             velocity.x = targetVelocity.x;
 
@@ -122,7 +133,6 @@ namespace Platformer.Mechanics
             move = Vector2.up * deltaPosition.y;
 
             PerformMovement(move, true);
-
         }
 
         void PerformMovement(Vector2 move, bool yMovement)
@@ -135,13 +145,26 @@ namespace Platformer.Mechanics
                 var count = body.Cast(move, contactFilter, hitBuffer, distance + shellRadius);
                 for (var i = 0; i < count; i++)
                 {
+                    // ONE-WAY PLATFORM
+                    if (hitBuffer[i].collider.gameObject.layer ==
+                        LayerMask.NameToLayer("OneWayPlatform"))
+                    {
+                        // Don't collide while moving upward.
+                        if (velocity.y > 0)
+                            continue;
+
+                        // Don't collide with the underside or sides.
+                        if (hitBuffer[i].normal.y < 0.5f)
+                            continue;
+                    }
+
                     var currentNormal = hitBuffer[i].normal;
 
-                    //is this surface flat enough to land on?
+                    // Is this surface flat enough to land on?
                     if (currentNormal.y > minGroundNormalY)
                     {
                         IsGrounded = true;
-                        // if moving up, change the groundNormal to new surface normal.
+
                         if (yMovement)
                         {
                             groundNormal = currentNormal;
@@ -160,9 +183,17 @@ namespace Platformer.Mechanics
                     }
                     else
                     {
-                        //We are airborne, but hit something, so cancel vertical up and horizontal velocity.
-                        velocity.x *= 0;
-                        velocity.y = Mathf.Min(velocity.y, 0);
+                        // Hit a wall: stop horizontal movement only.
+                        if (Mathf.Abs(currentNormal.x) > 0.5f)
+                        {
+                            velocity.x = 0;
+                        }
+
+                        // Hit a ceiling while moving upward: stop vertical movement.
+                        if (currentNormal.y < -0.5f && velocity.y > 0)
+                        {
+                            velocity.y = 0;
+                        }
                     }
                     //remove shellDistance from actual move distance.
                     var modifiedDistance = hitBuffer[i].distance - shellRadius;
