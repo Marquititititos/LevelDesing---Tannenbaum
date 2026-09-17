@@ -7,6 +7,8 @@ public class CircularMovingPlatform : MonoBehaviour
     public float speed = 1f;
     public float startAngle = 0f;
 
+    public bool isMoving = true;
+
     public Vector2 DeltaMovement { get; private set; }
 
     private Vector2 center;
@@ -29,6 +31,13 @@ public class CircularMovingPlatform : MonoBehaviour
 
     void FixedUpdate()
     {
+        // If paused, the platform must report NO movement.
+        if (!isMoving)
+        {
+            DeltaMovement = Vector2.zero;
+            return;
+        }
+
         Vector2 oldPosition = rb.position;
 
         angle += speed * Time.fixedDeltaTime;
