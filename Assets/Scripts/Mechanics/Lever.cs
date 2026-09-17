@@ -4,7 +4,7 @@ using UnityEngine.Playables;
 public class Lever : MonoBehaviour
 {
     public bool isOn = false;
-    public bool canInteract = false;
+    private bool canInteract = false;
     private Animator anim;
     public int leverID; // Unique identifier for the lever
 
@@ -18,6 +18,7 @@ public class Lever : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
+        canInteract = false;
         anim = GetComponent<Animator>();
     }
 
@@ -26,6 +27,10 @@ public class Lever : MonoBehaviour
     {
         if (canInteract && Input.GetKeyDown(KeyCode.E))
         {
+            Debug.Log(
+            $"INTERACTING WITH {gameObject.name} | ID={leverID} | canInteract={canInteract}"
+        );
+
             isOn = !isOn;
             anim.SetBool("isOn", isOn);
             Interact();
@@ -52,7 +57,7 @@ public class Lever : MonoBehaviour
 
     public void Interact()
     {
-        switch(leverID)
+        switch (leverID)
         {
             case 1:
                 piston.enabled = !piston.enabled;
@@ -84,11 +89,11 @@ public class Lever : MonoBehaviour
 
                 foreach (CircularMovingPlatform platform in platforms2)
                 {
-                    if (isOn) { platform.speed *= -1.5f; } else { platform.speed /= -1.5f; }
+                    if (isOn) { platform.speed *= -2f; } else { platform.speed /= -2f; }
                 }
                 foreach (RotatingObject rotatingObject in rotatingObjects2)
                 {
-                    if (isOn) { rotatingObject.spd *= -1.5f; } else { rotatingObject.spd /= -1.5f; }
+                    if (isOn) { rotatingObject.spd *= -2f; } else { rotatingObject.spd /= -2f; }
                 }
                 break;
         }

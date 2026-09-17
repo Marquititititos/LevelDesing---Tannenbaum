@@ -138,8 +138,15 @@ namespace Platformer.Mechanics
                     spriteRenderer.flipX = true;
             }
 
-            animator.SetBool(groundedAnimatorParam, IsGrounded);
-            animator.SetFloat(velocityXAnimatorParam, Mathf.Abs(velocity.x) / maxSpeed);
+            if (HasAnimatorParameter(groundedAnimatorParam, AnimatorControllerParameterType.Bool))
+            {
+                animator.SetBool(groundedAnimatorParam, IsGrounded);
+            }
+
+            if (HasAnimatorParameter(velocityXAnimatorParam, AnimatorControllerParameterType.Float))
+            {
+                animator.SetFloat(velocityXAnimatorParam, Mathf.Abs(velocity.x) / maxSpeed);
+            }
 
             if (!useSmoothAcceleration)
             {
@@ -158,6 +165,17 @@ namespace Platformer.Mechanics
                 smoothedMoveX = Mathf.MoveTowards(smoothedMoveX, targetSpeed, accelRate * Time.deltaTime);
                 targetVelocity = new Vector2(smoothedMoveX, move.y * maxSpeed);
             }
+        }
+
+        private bool HasAnimatorParameter(string paramName, AnimatorControllerParameterType type)
+        {
+            foreach (AnimatorControllerParameter param in animator.parameters)
+            {
+                if (param.name == paramName && param.type == type)
+                    return true;
+            }
+
+            return false;
         }
     }
 }
